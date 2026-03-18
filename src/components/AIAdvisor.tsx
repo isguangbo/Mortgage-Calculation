@@ -26,7 +26,8 @@ const AIAdvisor: React.FC<AIAdvisorProps> = ({ data }) => {
 		setLoading(true)
 		setAnalysis(null)
 
-		const apiKey: string = ''; // 在此处填入您的阿里云 DashScope API Key
+		// 优先从环境变量获取，如果在本地未配置环境变量，则回退到这里的硬编码（请勿将真实 Key 提交到代码库）
+		const apiKey: string = import.meta.env.VITE_DASHSCOPE_API_KEY || ''
 
 		const prepayText = data.prepaymentsCount > 0 ? `配置了 ${data.prepaymentsCount} 笔提前还款操作` : '当前暂无配置提前还款'
 		const lprText = data.rateAdjustmentsCount > 0 ? `经历了 ${data.rateAdjustmentsCount} 次LPR下调或重定价` : '暂无LPR调整记录'
