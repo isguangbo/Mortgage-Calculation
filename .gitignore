@@ -1,25 +1,55 @@
-# Logs
-logs
+# 依赖
+node_modules/
+.pnp
+.pnp.js
+
+# 构建产物
+dist/
+dist-ssr/
+*.local
+
+# 日志
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-*.zip
-# Editor directories and files
-.vscode
+# 测试
+coverage/
+
+# 缓存与临时文件
+.eslintcache
+.stylelintcache
+.vite/
+*.tsbuildinfo
+
+# 环境变量 (严禁提交敏感信息)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 编辑器与 IDE
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# 部署
+.vercel/
+
+# Gemini CLI 临时文件与缓存
+.gemini/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+GEMINI.md

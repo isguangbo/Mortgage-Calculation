@@ -9,6 +9,7 @@ interface AIAdvisorProps {
 		monthsPaid: number
 		totalMonths: number
 		remainingPrincipal: number
+		remainingInterest: number
 		paidInterest: number
 		savedInterest: number
 		prepaymentsCount: number
@@ -38,6 +39,7 @@ const AIAdvisor: React.FC<AIAdvisorProps> = ({ data }) => {
       - 还款方式: ${data.method}
       - 当前进度: 第 ${data.monthsPaid} 个月 / 实际需要共 ${data.totalMonths} 个月结清
       - 当前剩余未还本金: ${formatMoney(data.remainingPrincipal)}
+      - 未来仍需支付的利息: ${formatMoney(data.remainingInterest)}
       - 已经支付给银行的利息: ${formatMoney(data.paidInterest)}
       - 历史操作记录: ${prepayText}，${lprText}
       - 因提前还款或LPR降息总共节省的未来利息: ${formatMoney(data.savedInterest)}
@@ -77,11 +79,12 @@ const AIAdvisor: React.FC<AIAdvisorProps> = ({ data }) => {
 			const result = await response.json()
 			const text = result.output?.choices?.[0]?.message?.content || '抱歉，生成分析报告时出现错误。'
 			setAnalysis(text)
-		} catch (error: any) {
+		} catch (error: unknown) {
+			const message = error instanceof Error ? error.message : String(error)
 			if (!apiKey || apiKey.trim() === '') {
 				setAnalysis('⚠️ 未检测到 API Key。请在 src/components/AIAdvisor.tsx 中填入您的阿里云通义千问 API Key。')
 			} else {
-				setAnalysis(`⚠️ API 请求失败: ${error.message || '请检查网络连接或 API Key 是否有效'}`)
+				setAnalysis(`⚠️ API 请求失败: ${message || '请检查网络连接或 API Key 是否有效'}`)
 			}
 		} finally {
 			setLoading(false)

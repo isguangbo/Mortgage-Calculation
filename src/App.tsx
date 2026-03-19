@@ -22,7 +22,7 @@ const App: React.FC = () => {
 	const [loanAmount, setLoanAmount] = useState<number | string>(133)
 	const [annualRate, setAnnualRate] = useState<number | string>(4.1)
 	const [loanYears, setLoanYears] = useState<number>(30)
-	const [startDate, setStartDate] = useState<string>('2022-12')
+	const [startDate, setStartDate] = useState<string>('2023-01')
 	const [paymentDay, setPaymentDay] = useState<number | string>(30)
 	const [repaymentMethod, setRepaymentMethod] = useState<RepaymentMethod>('等额本息')
 	const [interestRule, setInterestRule] = useState<InterestRule>('bank_standard')
@@ -84,6 +84,7 @@ const App: React.FC = () => {
 		}
 
 		const savedInterest = Math.max(0, baseRun.totalInterest - actualRun.totalInterest)
+		const remainingInterest = Math.max(0, actualRun.totalInterest - paidInterest)
 		const originalMonths = loanYears * 12
 		const actualMonths = schedule.length
 		const monthsSaved = originalMonths - actualMonths
@@ -92,6 +93,7 @@ const App: React.FC = () => {
 			paidPrincipal,
 			paidInterest,
 			remainingPrincipal,
+			remainingInterest,
 			savedInterest,
 			actualMonths,
 			originalMonths,
@@ -203,7 +205,7 @@ const App: React.FC = () => {
 					</div>
 					<div>
 						<h1 className='text-3xl font-extrabold text-slate-900 tracking-tight'>
-							房贷核心级测算系统 <span className='text-sky-600'></span>
+							房贷还款测算系统 <span className='text-sky-600'></span>
 						</h1>
 						<p className='text-slate-500 font-medium mt-1'>解构银行底层算法：补偿平滑、LPR 分段、本金曲线。集成 ✨ AI 智能顾问。</p>
 					</div>
@@ -377,11 +379,12 @@ const App: React.FC = () => {
 							</h2>
 							<div className='flex items-center gap-2'>
 								{rateAdjustments.length > 0 && (
-									<button onClick={handleClearAllLPR} className='px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors'>
+									<button aria-label='清除所有 LPR 记录' onClick={handleClearAllLPR} className='px-3 py-1.5 text-xs font-bold text-red-500 hover:bg-red-50 rounded-lg transition-colors'>
 										清空
 									</button>
 								)}
 								<button
+									aria-label='添加 LPR 记录'
 									onClick={() => {
 										setIsLprModalOpen(true)
 										setEditingLprId(null)
@@ -480,21 +483,26 @@ const App: React.FC = () => {
 				{/* Right Content: Stats & Details */}
 				<div className='space-y-8'>
 					{/* Key Indicators Grid */}
-					<div className='grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6'>
+					<div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 sm:gap-6'>
 						<div className='glass-card rounded-[28px] p-5 sm:p-6 transition-transform hover:scale-[1.02] overflow-hidden'>
 							<div className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-3 truncate'>当前剩余本金</div>
 							<div className='text-lg sm:text-xl xl:text-2xl font-black text-slate-800 break-all leading-tight'>{formatMoney(summary?.remainingPrincipal || 0).replace('¥', '')}</div>
-							<div className='mt-3 inline-flex items-center text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full uppercase tracking-tighter'>Live Data</div>
+							<div className='mt-3 inline-flex items-center text-[9px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full uppercase tracking-tighter'>Live Principal</div>
 						</div>
 						<div className='glass-card rounded-[28px] p-5 sm:p-6 transition-transform hover:scale-[1.02] overflow-hidden'>
-							<div className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-3 text-orange-400 truncate'>累计已还利息</div>
-							<div className='text-lg sm:text-xl xl:text-2xl font-black text-orange-500 break-all leading-tight'>{formatMoney(summary?.paidInterest || 0).replace('¥', '')}</div>
-							<div className='mt-3 inline-flex items-center text-[9px] font-bold px-2 py-0.5 bg-orange-50 text-orange-400 rounded-full uppercase tracking-tighter'>Accrued Interest</div>
+							<div className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-3 text-rose-400 truncate'>当前剩余利息</div>
+							<div className='text-lg sm:text-xl xl:text-2xl font-black text-rose-500 break-all leading-tight'>{formatMoney(summary?.remainingInterest || 0).replace('¥', '')}</div>
+							<div className='mt-3 inline-flex items-center text-[9px] font-bold px-2 py-0.5 bg-rose-50 text-rose-400 rounded-full uppercase tracking-tighter'>Interest Left</div>
 						</div>
 						<div className='glass-card rounded-[28px] p-5 sm:p-6 transition-transform hover:scale-[1.02] overflow-hidden'>
 							<div className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-3 text-sky-400 truncate'>累计已还本金</div>
 							<div className='text-lg sm:text-xl xl:text-2xl font-black text-sky-600 break-all leading-tight'>{formatMoney(summary?.paidPrincipal || 0).replace('¥', '')}</div>
 							<div className='mt-3 inline-flex items-center text-[9px] font-bold px-2 py-0.5 bg-sky-50 text-sky-500 rounded-full uppercase tracking-tighter'>Principal Paid</div>
+						</div>
+						<div className='glass-card rounded-[28px] p-5 sm:p-6 transition-transform hover:scale-[1.02] overflow-hidden'>
+							<div className='text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-3 text-orange-400 truncate'>累计已还利息</div>
+							<div className='text-lg sm:text-xl xl:text-2xl font-black text-orange-500 break-all leading-tight'>{formatMoney(summary?.paidInterest || 0).replace('¥', '')}</div>
+							<div className='mt-3 inline-flex items-center text-[9px] font-bold px-2 py-0.5 bg-orange-50 text-orange-400 rounded-full uppercase tracking-tighter'>Interest Paid</div>
 						</div>
 						<div className='bg-emerald-600 rounded-[28px] p-5 sm:p-6 shadow-xl shadow-emerald-200/50 transition-transform hover:scale-[1.02] relative overflow-hidden group'>
 							<div className='relative z-10 text-[10px] sm:text-xs font-bold text-emerald-100 uppercase tracking-widest mb-2 sm:mb-3 truncate'>预计总省利息</div>
@@ -538,7 +546,9 @@ const App: React.FC = () => {
 								method: repaymentMethod,
 								monthsPaid: Number(monthsPaid) || 0,
 								totalMonths: summary.actualMonths,
-								remainingPrincipal: summary.remainingPrincipal,								paidInterest: summary.paidInterest,
+								remainingPrincipal: summary.remainingPrincipal,
+								remainingInterest: summary.remainingInterest,
+								paidInterest: summary.paidInterest,
 								savedInterest: summary.savedInterest,
 								prepaymentsCount: prepayments.length,
 								rateAdjustmentsCount: rateAdjustments.length
