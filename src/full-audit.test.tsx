@@ -21,6 +21,16 @@ describe('🏠 房贷核心测算系统 - 全面 UI & 数据审计', () => {
     expect(allInterestValues.length).toBeGreaterThan(0);
   });
 
+  it('应当正确计算并显示“无债之身”倒计时和还款进度', async () => {
+    render(<App />);
+    
+    // 检查倒计时文字是否存在
+    expect(screen.getByText(/无债之身还需/i)).toBeInTheDocument();
+    
+    // 检查进度条百分比文字
+    expect(screen.getByLabelText('债务偿还进度百分比')).toBeInTheDocument();
+  });
+
   it('LPR 重定价应当能成功打开并添加记录', async () => {
     render(<App />);
     

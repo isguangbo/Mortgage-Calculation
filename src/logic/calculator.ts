@@ -24,6 +24,8 @@ export interface RepaymentRow {
   isSpecial: boolean;
   prepaymentAmount: number;
   note: string;
+  impactValue?: number; // 节省的未来利息总额
+  eventId?: string; // 用于 UI 锚定定位
 }
 
 export type InterestRule = 'bank_standard' | 'monthly' | 'daily';
@@ -36,6 +38,20 @@ export const addMonths = (dateStr: string, months: number): string => {
 };
 
 export const formatMMDD = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// 辅助计算：在特定状态下，剩余期数的总利息（影子计算）
+function calculateRemainingInterest(p: number, r: number, n: number, method: RepaymentMethod): number {
+  if (p <= 0 || n <= 0 || r < 0) return 0;
+  const mr = r / 100 / 12;
+  if (method === '等额本息') {
+    if (mr === 0) return 0;
+    const payment = (p * mr * Math.pow(1 + mr, n)) / (Math.pow(1 + mr, n) - 1);
+    return payment * n - p;
+  } else {
+    // 等额本金总利息 = (n + 1) * p * mr / 2
+    return (n + 1) * p * mr / 2;
+  }
+}
 
 export function calculateMortgage(
   loanAmountWan: number,
@@ -87,11 +103,20 @@ export function calculateMortgage(
     
     let noteArr: string[] = [];
     let isAnomalyMonth = false;
+    let impactValue = 0;
+    let eventId = '';
 
     // 1. LPR Check
     if (rateMap[currentDateStr]) {
-      const newRate = rateMap[currentDateStr][rateMap[currentDateStr].length - 1].newRate;
+      const adjustment = rateMap[currentDateStr][rateMap[currentDateStr].length - 1];
+      const newRate = adjustment.newRate;
       if (currentRate !== newRate) {
+        // 影子计算：如果不调利率，剩余利息是多少？
+        const interestOld = calculateRemainingInterest(currentPrincipal, currentRate, currentMonthsRemaining, method);
+        const interestNew = calculateRemainingInterest(currentPrincipal, newRate, currentMonthsRemaining, method);
+        impactValue += (interestOld - interestNew);
+        eventId = `lpr-${adjustment.id}`;
+
         oldRate = currentRate; currentRate = newRate;
         currentMonthlyRate = currentRate / 100 / 12;
         isAnomalyMonth = true;
@@ -135,71 +160,70 @@ export function calculateMortgage(
     
     if (method === '等额本息') {
       if (isAnomalyMonth) {
-        // 重算月供时，currentMonthsRemaining 代表的是本期（包含中）及其之后的总期数
         const p = currentPrincipal;
         const r = currentMonthlyRate;
         const n = currentMonthsRemaining;
-        
-        if (r > 0) {
-          currentPayment_EPI = (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
-        } else {
-          currentPayment_EPI = p / n;
-        }
-        
-        // 变动月的理论本金 = 本月重算的理论月供 - 全月新利息 (为了曲线平滑)
+        if (r > 0) currentPayment_EPI = (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+        else currentPayment_EPI = p / n;
         theoreticalPrincipal = currentPayment_EPI - (currentPrincipal * currentMonthlyRate);
       } else {
         theoreticalPrincipal = currentPayment_EPI - theoreticalInterest;
       }
     } else {
-      if (isAnomalyMonth) {
-        currentMonthlyPrincipal_EP = currentPrincipal / currentMonthsRemaining;
-      }
+      if (isAnomalyMonth) currentMonthlyPrincipal_EP = currentPrincipal / currentMonthsRemaining;
       theoreticalPrincipal = currentMonthlyPrincipal_EP;
     }
 
     let principal = theoreticalPrincipal;
-    if (principal > currentPrincipal || currentMonthsRemaining === 1) {
-      principal = currentPrincipal; 
-    }
+    if (principal > currentPrincipal || currentMonthsRemaining === 1) principal = currentPrincipal; 
     
     let payment = principal + interest;
-
     currentPrincipal -= principal; 
     totalInterest += interest; 
 
-    let rowData: RepaymentRow = {
-      period: i, date: currentDateStr, periodStr: `${formatMMDD(prevDObj)}至${formatMMDD(currDObj)}`,
-      rate: currentRate, days: calcDays, payment, principal, interest,
-      remainingPrincipal: Math.max(0, currentPrincipal), isSpecial: isAnomalyMonth,
-      prepaymentAmount: 0, note: noteArr.join(' | ')
-    };
-
     // 4. Prepayment Handling
+    let totalP = 0;
     if (prepayMap[currentDateStr]) {
-      let totalP = 0, strategy: Prepayment['strategy'] = 'reduce_payment';
+      let strategy: Prepayment['strategy'] = 'reduce_payment';
+      // 影子计算：如果不提前还款，剩余利息是多少？
+      const interestBefore = calculateRemainingInterest(currentPrincipal + principal, currentRate, currentMonthsRemaining, method);
+      
       prepayMap[currentDateStr].forEach(p => {
         let pAmt = Math.min(p.amount, currentPrincipal);
         totalP += pAmt; currentPrincipal -= pAmt; strategy = p.strategy;
+        eventId = `prepay-${p.id}`;
       });
+
       if (totalP > 0) {
-        rowData.isSpecial = true; 
-        rowData.prepaymentAmount = totalP; 
-        rowData.remainingPrincipal = Math.max(0, currentPrincipal);
-        rowData.note = (rowData.note ? rowData.note + ' | ' : '') + `💰提前还本:${totalP/10000}万`;
+        isAnomalyMonth = true; 
         if (currentPrincipal > 0.01) {
+          let newRemainingMonths = currentMonthsRemaining - 1;
           if (strategy === 'reduce_payment') {
             if (method === '等额本金') currentMonthlyPrincipal_EP = currentPrincipal / (currentMonthsRemaining - 1);
             else currentPayment_EPI = (currentPrincipal * currentMonthlyRate * Math.pow(1 + currentMonthlyRate, currentMonthsRemaining - 1)) / (Math.pow(1 + currentMonthlyRate, currentMonthsRemaining - 1) - 1);
           } else {
-            if (method === '等额本息') currentMonthsRemaining = Math.ceil(-Math.log(1 - (currentPrincipal * currentMonthlyRate) / currentPayment_EPI) / Math.log(1 + currentMonthlyRate)) + 1;
-            else currentMonthsRemaining = Math.ceil(currentPrincipal / currentMonthlyPrincipal_EP) + 1;
+            if (method === '等额本息') newRemainingMonths = Math.ceil(-Math.log(1 - (currentPrincipal * currentMonthlyRate) / currentPayment_EPI) / Math.log(1 + currentMonthlyRate));
+            else newRemainingMonths = Math.ceil(currentPrincipal / currentMonthlyPrincipal_EP);
+            currentMonthsRemaining = newRemainingMonths + 1; // 补偿下一轮的 --
           }
+          const interestAfter = calculateRemainingInterest(currentPrincipal, currentRate, newRemainingMonths, method);
+          impactValue += (interestBefore - (interestAfter + interest)); // 近似节省利息
+        } else {
+          impactValue += (interestBefore - interest);
         }
+        noteArr.push(`💰提前还本:${totalP/10000}万`);
       }
     }
 
-    schedule.push(rowData);
+    schedule.push({
+      period: i, date: currentDateStr, periodStr: `${formatMMDD(prevDObj)}至${formatMMDD(currDObj)}`,
+      rate: currentRate, days: calcDays, payment, principal, interest,
+      remainingPrincipal: Math.max(0, currentPrincipal), isSpecial: isAnomalyMonth,
+      prepaymentAmount: totalP, note: noteArr.join(' | '),
+      impactValue: impactValue !== 0 ? impactValue : undefined,
+      eventId: eventId || undefined
+    });
+
     prevActualDay = currActualDay; 
     currentMonthsRemaining--; 
     i++;

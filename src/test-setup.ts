@@ -16,7 +16,7 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock ResizeObserver for Chart.js
+// Mock ResizeObserver for ECharts/Chart.js
 if (typeof window !== 'undefined') {
   window.ResizeObserver = vi.fn().mockImplementation(() => ({
       observe: vi.fn(),
@@ -25,7 +25,15 @@ if (typeof window !== 'undefined') {
   }));
 }
 
-// Mock Chart.js to avoid canvas issues in jsdom
+// Mock complex visualization components to avoid canvas issues in jsdom
 vi.mock('react-chartjs-2', () => ({
   Bar: () => null,
+}));
+
+vi.mock('./components/DeepInsights', () => ({
+  default: () => null,
+}));
+
+vi.mock('echarts-for-react', () => ({
+  default: () => null,
 }));
