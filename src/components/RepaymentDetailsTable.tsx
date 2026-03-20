@@ -11,28 +11,35 @@ interface RepaymentDetailsTableProps {
 }
 
 const RepaymentDetailsTable: React.FC<RepaymentDetailsTableProps> = ({ schedule, monthsPaid, scrollToEventId }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef<Record<string, HTMLTableRowElement | null>>({});
   const isFirstRender = useRef(true);
 
   // 内部滚动核心函数：只滚动容器，不滚动页面
-  const scrollToElement = (targetEl: HTMLElement | null) => {
+  const scrollToElement = (targetEl: HTMLElement | null, triggerWindowScroll = false) => {
     if (!targetEl || !scrollContainerRef.current) return;
     
+    // 1. 微观轴：表格内部滚动
     const container = scrollContainerRef.current;
     const targetOffsetTop = targetEl.offsetTop;
     
-    // 平滑滚动到目标位置，并留出一些顶部间距（例如 60px 避开 sticky 表头）
     container.scrollTo({
       top: targetOffsetTop - 60,
       behavior: 'smooth'
     });
+
+    // 2. 宏观轴：网页主窗口滚动 (仅在外部跳转时触发)
+    if (triggerWindowScroll && containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   };
 
   // 1. 监听外部跳转指令 (LPR 或 提前还款跳转)
   useEffect(() => {
     if (scrollToEventId && rowRefs.current[scrollToEventId]) {
-      scrollToElement(rowRefs.current[scrollToEventId]);
+      // 触发双轴联动：内部滚动 + 外部页面滚动
+      scrollToElement(rowRefs.current[scrollToEventId], true);
     }
   }, [scrollToEventId]);
 
@@ -46,12 +53,13 @@ const RepaymentDetailsTable: React.FC<RepaymentDetailsTableProps> = ({ schedule,
     const targetPeriod = monthsPaid + 1;
     const targetKey = `period-${targetPeriod}`;
     if (rowRefs.current[targetKey]) {
-      scrollToElement(rowRefs.current[targetKey]);
+      // 时光机仅触发内部微观滚动
+      scrollToElement(rowRefs.current[targetKey], false);
     }
   }, [monthsPaid]);
 
   return (
-    <div className='glass-card rounded-[40px] overflow-hidden flex flex-col h-[700px]'>
+    <div ref={containerRef} className='glass-card rounded-[40px] overflow-hidden flex flex-col h-[700px]'>
       <div className='p-8 border-b border-slate-100 bg-white/40 flex justify-between items-center'>
         <div>
           <h3 className='text-xl font-black text-slate-800 flex items-center gap-3'>
